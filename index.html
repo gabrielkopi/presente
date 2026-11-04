@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Gabriel · Quero ganhar</title>
+<meta name="description" content="Os perfumes que o Gabriel adoraria ganhar, e o gosto dele para acertar no presente.">
+<meta name="theme-color" content="#f4f4f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0b0c" media="(prefers-color-scheme: dark)">
+<script>
+  try { var t = localStorage.getItem('presente-tema'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t } catch (e) {}
+</script>
+<link rel="stylesheet" href="style.css?v=2">
+</head>
+<body>
+<header class="top" id="top">
+  <a class="mark" href="#" data-act="inicio">GABRIEL</a>
+  <div class="top-actions">
+    <button class="icon" data-act="tema" aria-label="Alternar tema">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.25"/><path d="M12 3.75a8.25 8.25 0 0 1 0 16.5z" class="fill"/></svg>
+    </button>
+    <button class="pill ghost" data-act="editar" id="btn-editar" hidden>Editar</button>
+  </div>
+</header>
+
+<main id="app" tabindex="-1"></main>
+
+<div class="editbar" id="editbar" hidden>
+  <span class="editbar-label"><i></i>Editando · salvo neste aparelho</span>
+  <div class="editbar-actions">
+    <button class="pill ghost" data-act="perfil">Perfil</button>
+    <button class="pill ghost" data-act="buscar" data-alvo="desejos">Adicionar</button>
+    <button class="pill solid" data-act="enviar">Enviar link</button>
+    <button class="pill ghost" data-act="sair">Pronto</button>
+  </div>
+</div>
+
+<dialog class="sheet" id="sheet" aria-modal="true">
+  <div class="sheet-card">
+    <div class="grabber" data-grab aria-hidden="true"></div>
+    <button class="icon close" data-act="fechar" aria-label="Fechar">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <div class="sheet-body" id="sheet-body"></div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="catalogo.js?v=2"></script>
+<script src="perfil.js?v=2"></script>
+<script src="app.js?v=2"></script>
+</body>
+</html>
