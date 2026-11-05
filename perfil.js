@@ -12,5 +12,7 @@ const PERFIL_PADRAO = {
   amo: [],
   evito: [],
   desejos: [],
-  tenho: []
+  tenho: [],
+  meus: [],
+  foto: ''
 }

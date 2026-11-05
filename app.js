@@ -41,6 +41,7 @@
     ;['amo', 'evito', 'ocasioes', 'tenho'].forEach(k => { out[k] = Array.isArray(out[k]) ? out[k].filter(Boolean) : [] })
     out.desejos = (Array.isArray(out.desejos) ? out.desejos : []).filter(d => d && BY.has(d.id))
     out.tenho = out.tenho.filter(id => BY.has(id))
+    out.meus = (Array.isArray(out.meus) ? out.meus : []).filter(m => m && BY.has(m.id)).slice(0, 8).map(m => ({ id: m.id, oc: Array.isArray(m.oc) ? m.oc.filter(o => OCASIOES.includes(o)) : [] }))
     out.nome = String(out.nome || 'Gabriel').slice(0, 24)
     out.bio = String(out.bio || '').slice(0, 180)
     return out
@@ -58,6 +59,7 @@
   }
 
   let mode = 'view' // view | edit | shared
+  let curOc = 'Geral'
   let P
   function boot () {
     const h = location.hash
@@ -71,7 +73,7 @@
   }
   const save = () => store.set(LOCAL_KEY, JSON.stringify(P))
   const isOwner = () => store.get('presente-dono') === '1'
-  const shareURL = () => location.origin + location.pathname + '#p=' + encode(P)
+  const shareURL = () => { const c = clone(P); delete c.fotoLocal; return location.origin + location.pathname + '#p=' + encode(c) }
 
   /* ---------- Gosto e sugestões ---------- */
   function notesOf (p) { return [...p.t, ...p.h, ...p.s, ...p.x] }
@@ -81,9 +83,35 @@
     Object.entries(P.familias).forEach(([f, lv]) => { if (w[f] != null) w[f] += lv === 2 ? 3 : lv === 1 ? 1.5 : 0 })
     P.desejos.forEach((d, i) => { const p = BY.get(d.id); if (p && w[p.f] != null) w[p.f] += (d.top ? 2.2 : 1.4) * (1 - Math.min(i, 8) * 0.05) })
     P.tenho.forEach(id => { const p = BY.get(id); if (p && w[p.f] != null) w[p.f] += 0.6 })
+    P.meus.forEach(m => { const p = BY.get(m.id); if (p && w[p.f] != null) w[p.f] += 3 })
     const total = Object.values(w).reduce((a, b) => a + b, 0)
     if (!total) return []
     return Object.entries(w).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([f, v]) => ({ f, pct: Math.round((v / total) * 100) }))
+  }
+  /* Notas: une traduções pela ilustração (Vanilla = Baunilha) e pesa o fundo, que é o que fica na pele */
+  const NIMG = typeof NOTAS_IMG !== 'undefined' ? NOTAS_IMG : {}
+  const NNOME = typeof NOTAS_NOME !== 'undefined' ? NOTAS_NOME : {}
+  const NIDS = new Set(Object.values(NIMG))
+  const fk = s => fold(s).replace(/[^a-z0-9]+/g, ' ').trim()
+  function noteKey (n) { const k = fk(n); return NIMG[k] || NIMG[k.replace(/ (accord|acorde|absolute|absoluto|oil|oleo|essence|essencia)$/, '')] || k }
+  function noteLabel (key, raw) { if (NNOME[key]) return NNOME[key]; const r = String(raw || key); return r.charAt(0).toUpperCase() + r.slice(1) }
+  function topNotes (occasion, n = 3) {
+    const w = new Map(), raw = new Map()
+    const add = (p, f) => {
+      const tiers = [[p.t, 0.85], [p.h, 1], [p.s, 1.2], [p.x, 1]]
+      tiers.forEach(([arr, tw]) => arr.forEach(note => { const k = noteKey(note); w.set(k, (w.get(k) || 0) + f * tw); if (!raw.has(k)) raw.set(k, note) }))
+    }
+    if (occasion && occasion !== 'Geral') {
+      P.meus.filter(m => m.oc.includes(occasion)).forEach(m => { const p = BY.get(m.id); p && add(p, 1) })
+    } else {
+      P.meus.forEach(m => { const p = BY.get(m.id); p && add(p, 2) })
+      P.desejos.forEach(d => { const p = BY.get(d.id); p && add(p, d.top ? 1.2 : 0.8) })
+      P.tenho.forEach(id => { const p = BY.get(id); p && add(p, 0.5) })
+      P.amo.forEach(nm => { const k = noteKey(nm); w.set(k, (w.get(k) || 0) + 2.5); if (!raw.has(k)) raw.set(k, nm) })
+    }
+    const avoid = new Set(P.evito.map(noteKey))
+    return [...w.entries()].filter(([k]) => !avoid.has(k)).sort((x, y) => y[1] - x[1]).slice(0, n)
+      .map(([k]) => ({ key: k, nome: noteLabel(k, raw.get(k)), img: NIDS.has(k) ? k : null }))
   }
   function audienceOk (p) {
     if (P.publico === 'Masculino') return p.a !== 'Feminino'
@@ -182,9 +210,11 @@
     const top = wishes.find(x => x.d.top) || wishes[0]
     const letters = [...P.nome].map((c, i) => `<span class="ch" style="--i:${i}">${c === ' ' ? '&nbsp;' : esc(c)}</span>`).join('')
 
-    const hero = `<section class="hero">
-      <div class="eyebrow rv in">Lista de presentes · perfumes</div>
-      <h1 class="wordmark" aria-label="${esc(P.nome)}">${letters}</h1>
+    const foto = P.fotoLocal || P.foto
+    const hero = `<section class="hero ${foto ? 'has-photo' : ''}">
+      ${foto ? `<figure class="portrait"><img src="${esc(foto)}" alt="${esc(P.nome)}" onerror="this.closest('.hero').classList.remove('has-photo');this.parentNode.remove()" decoding="async"><figcaption><div class="eyebrow">Lista de presentes · perfumes</div><h1 class="wordmark" aria-label="${esc(P.nome)}">${letters}</h1></figcaption></figure>` : ''}
+      <div class="eyebrow rv in hero-plain">Lista de presentes · perfumes</div>
+      <h1 class="wordmark hero-plain" aria-label="${esc(P.nome)}">${letters}</h1>
       <div class="hero-row">
         <p class="bio rv ${P.bio ? '' : 'muted'}" style="--d:2">${esc(P.bio || (editing ? 'Escreva uma frase sobre você em Perfil.' : ''))}</p>
         <div class="stats rv" style="--d:3">
@@ -194,6 +224,22 @@
         </div>
       </div>
     </section>`
+
+    const meus = P.meus.map(m => ({ m, p: BY.get(m.id) })).filter(x => x.p)
+    const ocs = ['Geral', ...OCASIOES.filter(o => P.meus.some(m => m.oc.includes(o)))]
+    if (!ocs.includes(curOc)) curOc = 'Geral'
+    const notes = topNotes(curOc)
+    const fam = fams[0]
+    const notesHTML = notes.length ? `<div class="three" id="three">${notes.map((n, i) => `<figure class="note rv" style="--d:${i + 1}">${n.img ? `<img src="notas/${esc(n.img)}.webp" alt="" loading="lazy" decoding="async">` : `<span class="note-ph">${esc(n.nome.slice(0, 1))}</span>`}<figcaption>${esc(n.nome)}</figcaption></figure>`).join('')}</div>` : ''
+    const me = (meus.length || editing) ? `<section class="sec me" id="eu">
+      <div class="sec-head rv"><div><div class="eyebrow">Esse sou eu</div><h2 class="sec-title">${fam ? esc(fam.f) : 'Meu perfil olfativo'}</h2><p class="sec-sub">${meus.length ? `Deduzido de ${meus.length} perfume${meus.length > 1 ? 's' : ''} que me representa${meus.length > 1 ? 'm' : ''}${fams[1] ? `, com um lado ${esc(fams[1].f.toLowerCase())}` : ''}.` : 'Escolha uns 5 perfumes que são a sua cara. O site descobre suas notas e sua família.'}</p></div>${editing ? `<button class="pill ${meus.length ? 'ghost' : 'solid'}" data-act="buscar" data-alvo="meus">${meus.length ? 'Escolher' : IC.plus + 'Escolher perfumes'}</button>` : ''}</div>
+      ${notes.length ? `<div class="notes-card rv">
+        <div class="notes-head"><div class="eyebrow">As três notas que ficam</div>${ocs.length > 1 ? `<div class="seg small" role="group" aria-label="Ocasião">${ocs.map(o => `<button data-act="oc" data-v="${esc(o)}" aria-pressed="${o === curOc}">${esc(o)}</button>`).join('')}</div>` : ''}</div>
+        ${notesHTML}
+        <p class="notes-foot">${curOc === 'Geral' ? 'Um retrato do meu universo olfativo.' : 'O que eu uso em: ' + esc(curOc.toLowerCase()) + '.'}</p>
+      </div>` : ''}
+      ${meus.length ? `<div class="rail me-rail">${meus.map((x, i) => `<div class="rv" style="--d:${Math.min(i, 6)}"><button class="card" data-act="ver" data-id="${x.p.id}"><div class="tile">${img(x.p)}</div><div class="meta"><div class="brand">${esc(x.p.b)}</div><div class="name">${esc(x.p.n)}</div><div class="sub">${esc(x.m.oc.length ? x.m.oc.join(' · ') : x.p.f)}</div></div></button></div>`).join('')}</div>` : ''}
+    </section>` : ''
 
     const list = wishes.length
       ? `<div class="grid">${wishes.map((x, i) => card(x.p, { rank: i + 1, d: x.d, editing, idx: i, total: wishes.length, i, chosen: chosen === x.p.id })).join('')}</div>`
@@ -236,7 +282,7 @@
       ${owned.length ? `<div class="rail">${owned.map((p, i) => `<div class="rv" style="--d:${Math.min(i, 6)}"><button class="card" data-act="ver" data-id="${p.id}"><div class="tile">${img(p)}</div><div class="meta"><div class="brand">${esc(p.b)}</div><div class="name">${esc(p.n)}</div></div></button>${editing ? `<div class="card-tools"><button class="mini" data-act="remtenho" data-id="${p.id}" aria-label="Remover">${IC.x}</button></div>` : ''}</div>`).join('')}</div>` : '<p class="sec-sub rv">Adicione os perfumes que você já tem, para ninguém dar repetido.</p>'}
     </section>` : ''
 
-    $('#app').innerHTML = `${hero}
+    $('#app').innerHTML = `${hero}${me}
       <section class="sec" id="lista">
         <div class="sec-head rv"><div><div class="eyebrow">Em ordem de preferência</div><h2 class="sec-title">Quero ganhar<span class="count">${wishes.length || ''}</span></h2></div>${editing && wishes.length ? `<button class="pill ghost" data-act="buscar" data-alvo="desejos">${IC.plus}Adicionar</button>` : ''}</div>
         ${list}
@@ -307,12 +353,14 @@
     const chosenKey = 'presente-escolhido-' + encode({ n: P.nome })
     const chosen = store.get(chosenKey) === id
     let actions
+    const mine = P.meus.find(m => m.id === id)
     if (mode === 'edit') {
-      actions = `<div class="field"><span>Por que eu quero</span><textarea class="input" id="nota" rows="2" maxlength="120" placeholder="Ex.: uso no trabalho, é o meu cheiro favorito">${esc(d ? d.nota : '')}</textarea><div class="counter" id="nota-c"></div></div>
+      actions = `${mine ? `<div class="field"><span>Quando eu uso</span><div class="chips">${OCASIOES.map(o => `<button class="chip" data-act="meuoc" data-id="${id}" data-v="${esc(o)}" aria-pressed="${mine.oc.includes(o)}">${esc(o)}</button>`).join('')}</div></div>` : ''}<div class="field"><span>Por que eu quero</span><textarea class="input" id="nota" rows="2" maxlength="120" placeholder="Ex.: uso no trabalho, é o meu cheiro favorito">${esc(d ? d.nota : '')}</textarea><div class="counter" id="nota-c"></div></div>
         <div class="actions two">
           ${inList ? `<button class="pill ghost big" data-act="toggletop" data-id="${id}">${d.top ? 'Tirar destaque' : 'Mais quero'}</button><button class="pill ghost big" data-act="remover" data-id="${id}" data-close="1">Tirar da lista</button>`
             : `<button class="pill solid big" data-act="addwish" data-id="${id}" data-close="1">${IC.plus}Quero ganhar</button><button class="pill ghost big" data-act="${owned ? 'remtenho' : 'addtenho'}" data-id="${id}" data-close="1">${owned ? 'Não tenho' : 'Já tenho'}</button>`}
-        </div>`
+        </div>
+        <div class="actions"><button class="pill line big wide" data-act="meu" data-id="${id}">${mine ? 'Tirar de Esse sou eu' : 'Esse sou eu'}</button></div>`
     } else {
       actions = `<div class="actions">
           <a class="pill solid big wide" href="https://www.google.com/search?tbm=shop&q=${q}" target="_blank" rel="noopener">${IC.bag}Onde comprar</a>
@@ -341,8 +389,8 @@
   function searchSheet (alvo) {
     searchTarget = alvo
     openSheet(`
-      <div class="eyebrow">${alvo === 'tenho' ? 'Já tenho' : 'Quero ganhar'}</div>
-      <h2>Adicionar perfume</h2>
+      <div class="eyebrow">${alvo === 'tenho' ? 'Já tenho' : alvo === 'meus' ? 'Esse sou eu' : 'Quero ganhar'}</div>
+      <h2>${alvo === 'meus' ? 'Perfumes que são a sua cara' : 'Adicionar perfume'}</h2>${alvo === 'meus' ? '<p class="lead">Escolha até 8. Com 5 o retrato já fica bom.</p>' : ''}
       <div class="search-wrap"><input class="input" id="q" type="search" placeholder="Nome, marca ou nota" autocomplete="off" enterkeyhint="search" aria-label="Buscar perfume"></div>
       <div class="results" id="res"></div>`, () => {
       const q = $('#q'); const res = $('#res')
@@ -359,7 +407,7 @@
             return { p, s }
           }).filter(Boolean).sort((a, b) => b.s - a.s).map(x => x.p)
         } else list = CAT.filter(p => p.img).slice(0, 0)
-        const set = new Set(alvo === 'tenho' ? P.tenho : P.desejos.map(d => d.id))
+        const set = new Set(alvo === 'tenho' ? P.tenho : alvo === 'meus' ? P.meus.map(m => m.id) : P.desejos.map(d => d.id))
         res.innerHTML = list.slice(0, 40).map(p => `<button class="res" data-act="pick" data-id="${p.id}">
             <span class="thumb">${p.img ? `<img class="${p.cv ? 'cover' : ''}" src="${esc(p.img)}" alt="" loading="lazy">` : ''}</span>
             <span><div class="t1">${esc(p.n)}</div><div class="t2">${esc([p.b, p.c].filter(Boolean).join(' · '))}</div></span>
@@ -379,6 +427,7 @@
       <div class="eyebrow">Perfil</div>
       <h2>Do seu jeito</h2>
       <p class="lead">Tudo aqui segue o mesmo padrão visual. Você escolhe o conteúdo e o tom.</p>
+      <div class="field"><span>Foto</span><div class="photo-row">${(P.fotoLocal || P.foto) ? `<img class="photo-mini" src="${esc(P.fotoLocal || P.foto)}" alt="">` : '<span class="photo-mini"></span>'}<label class="pill ghost">Escolher foto<input type="file" accept="image/*" id="f-foto" hidden></label>${P.fotoLocal ? '<button class="pill ghost" data-act="semfoto">Remover</button>' : ''}</div><div class="counter" style="text-align:left">A foto fica em preto e branco, no padrão da página, e é salva neste aparelho.</div></div>
       <label class="field"><span>Nome</span><input class="input" id="f-nome" maxlength="24" value="${esc(P.nome)}"></label>
       <label class="field"><span>Sobre você</span><textarea class="input" id="f-bio" rows="3" maxlength="180">${esc(P.bio)}</textarea><div class="counter" id="bio-c"></div></label>
       <div class="field"><span>Tom</span><div class="swatches">${TONS.map(t => `<div style="text-align:center"><button class="swatch" data-act="tom" data-v="${t.id}" aria-pressed="${P.tom === t.id}" aria-label="${t.nome}" style="background:${t.cor}"></button><div class="swatch-name">${t.nome}</div></div>`).join('')}</div></div>
@@ -394,6 +443,22 @@
       const nome = $('#f-nome'), bio = $('#f-bio'), c = $('#bio-c')
       const upd = () => { c.textContent = bio.value.length + '/180' }; upd()
       nome.addEventListener('input', () => { P.nome = nome.value.trim() || 'Gabriel'; save() })
+      const fi = $('#f-foto')
+      fi && fi.addEventListener('change', () => {
+        const file = fi.files && fi.files[0]; if (!file) return
+        const r = new FileReader()
+        r.onload = () => {
+          const im = new Image()
+          im.onload = () => {
+            const s = Math.min(1, 1100 / Math.max(im.width, im.height)), c = document.createElement('canvas')
+            c.width = Math.round(im.width * s); c.height = Math.round(im.height * s)
+            c.getContext('2d').drawImage(im, 0, 0, c.width, c.height)
+            P.fotoLocal = c.toDataURL('image/jpeg', 0.84); save(); profileSheet(); toast('Foto atualizada')
+          }
+          im.src = r.result
+        }
+        r.readAsDataURL(file)
+      })
       bio.addEventListener('input', () => { upd(); P.bio = bio.value.trim(); save() })
       $$('[data-note-input]').forEach(inp => inp.addEventListener('keydown', e => {
         if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addNote(inp.dataset.noteInput, inp.value) }
@@ -443,7 +508,11 @@
     ver (e, el) { perfumeSheet(el.dataset.id) },
     pick (e, el) {
       const id = el.dataset.id
-      if (searchTarget === 'tenho') {
+      if (searchTarget === 'meus') {
+        const i = P.meus.findIndex(m => m.id === id)
+        if (i >= 0) P.meus.splice(i, 1)
+        else { if (P.meus.length >= 8) { toast('Até 8 perfumes. Com 5 já fica ótimo.'); return } P.meus.push({ id, oc: [] }) }
+      } else if (searchTarget === 'tenho') {
         const i = P.tenho.indexOf(id); i >= 0 ? P.tenho.splice(i, 1) : P.tenho.push(id)
         if (i < 0) { const w = wishIndex(id); if (w >= 0) P.desejos.splice(w, 1) }
       } else {
@@ -452,9 +521,9 @@
         else { if (P.desejos.length >= 24) { toast('A lista aceita até 24 perfumes.'); return } P.desejos.push({ id, nota: '', top: false }); P.tenho = P.tenho.filter(x => x !== id) }
       }
       save()
-      const on = searchTarget === 'tenho' ? P.tenho.includes(id) : wishIndex(id) >= 0
+      const on = searchTarget === 'tenho' ? P.tenho.includes(id) : searchTarget === 'meus' ? P.meus.some(m => m.id === id) : wishIndex(id) >= 0
       const add = el.querySelector('.add'); add.classList.toggle('on', on); add.innerHTML = on ? IC.check : IC.plus
-      if (on) toast(searchTarget === 'tenho' ? 'Marcado como já tenho' : 'Adicionado à lista')
+      if (on) toast(searchTarget === 'tenho' ? 'Marcado como já tenho' : searchTarget === 'meus' ? (P.meus.length >= 5 ? 'Retrato pronto. Toque num perfume para dizer quando usa.' : P.meus.length + ' de 5') : 'Adicionado à lista')
     },
     addwish (e, el) {
       const id = el.dataset.id
@@ -474,6 +543,18 @@
       else { store.set(key, id); el.innerHTML = IC.check + 'Você escolheu este'; toast(P.tamanho && P.tamanho !== 'Tanto faz' ? `Ótima escolha. Se puder, ${P.tamanho}.` : 'Ótima escolha.') }
       onClose = () => transition(render)
     },
+    oc (e, el) { curOc = el.dataset.v; transition(render) },
+    meu (e, el) {
+      const id = el.dataset.id, i = P.meus.findIndex(m => m.id === id)
+      if (i >= 0) P.meus.splice(i, 1); else if (P.meus.length < 8) P.meus.push({ id, oc: [] }); else { toast('Até 8 perfumes.'); return }
+      save(); perfumeSheet(id)
+    },
+    meuoc (e, el) {
+      const m = P.meus.find(x => x.id === el.dataset.id); if (!m) return
+      const v = el.dataset.v, i = m.oc.indexOf(v); i >= 0 ? m.oc.splice(i, 1) : m.oc.push(v)
+      save(); el.setAttribute('aria-pressed', i < 0)
+    },
+    semfoto () { delete P.fotoLocal; save(); profileSheet() },
     set (e, el) { P[el.dataset.k] = el.dataset.v; save(); $$(`[data-act=set][data-k=${el.dataset.k}]`).forEach(b => b.setAttribute('aria-pressed', b === el)) },
     tom (e, el) { P.tom = el.dataset.v; save(); document.documentElement.dataset.tom = P.tom; $$('[data-act=tom]').forEach(b => b.setAttribute('aria-pressed', b === el)) },
     ocasiao (e, el) { const v = el.dataset.v, i = P.ocasioes.indexOf(v); i >= 0 ? P.ocasioes.splice(i, 1) : P.ocasioes.push(v); save(); el.setAttribute('aria-pressed', i < 0) },
@@ -507,7 +588,11 @@
 
   /* Topo ganha vidro ao rolar */
   const top = $('#top')
-  const onScroll = () => top.classList.toggle('solid', scrollY > 24)
+  const veil = document.getElementById('veil')
+  const onScroll = () => {
+    top.classList.toggle('solid', scrollY > 24)
+    if (veil) veil.classList.toggle('off', innerHeight + scrollY >= document.documentElement.scrollHeight - 40)
+  }
   addEventListener('scroll', onScroll, { passive: true }); onScroll()
 
   addEventListener('hashchange', () => {

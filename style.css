@@ -122,8 +122,8 @@ body.sheet-open main{filter:blur(6px);transform:scale(.985);opacity:.7}
 @media (min-width:1080px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .card{position:relative;text-align:left;display:block;width:100%;border-radius:var(--r-m);transition:transform .5s var(--spring)}
 .card:active{transform:scale(.975)}
-.tile{position:relative;aspect-ratio:4/5;border-radius:var(--r-m);background:var(--tile);overflow:hidden;isolation:isolate}
-.tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:12%;mix-blend-mode:multiply;filter:var(--tile-filter);transition:transform .9s var(--ease-out),opacity .6s var(--ease),filter .6s var(--ease);opacity:0}
+.tile{position:relative;aspect-ratio:4/5;border-radius:var(--r-m);background:var(--tile);overflow:hidden;isolation:isolate;filter:var(--tile-filter)}
+.tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:12%;mix-blend-mode:multiply;transition:transform .9s var(--ease-out),opacity .6s var(--ease),filter .6s var(--ease);opacity:0}
 .tile img.on{opacity:1}
 .tile img.cover,.ph-hero img.cover,.res .thumb img.cover{object-fit:cover;padding:0;mix-blend-mode:normal}
 .tile:has(img.cover) .rank{color:rgba(255,255,255,.85);text-shadow:0 1px 8px rgba(0,0,0,.3)}
@@ -288,3 +288,44 @@ body.editing .toast{bottom:calc(96px + env(safe-area-inset-bottom))}
   .rv{opacity:1;filter:none;transform:none}
   body.sheet-open main{filter:none;transform:none}
 }
+
+/* ---------- Retrato (herói com foto) ---------- */
+.hero.has-photo{padding-top:calc(72px + env(safe-area-inset-top))}
+.hero.has-photo .hero-plain{display:none}
+.portrait{position:relative;margin:0;border-radius:var(--r-l);overflow:hidden;background:#0a0a0a;aspect-ratio:4/5;max-height:82vh;width:100%;isolation:isolate}
+.portrait img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 30%;filter:grayscale(1) contrast(1.04);animation:portraitIn 1.6s var(--ease-out) both}
+.portrait::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.62) 0%,rgba(0,0,0,0) 46%);z-index:1}
+.portrait figcaption{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:22px clamp(18px,4vw,40px) clamp(16px,3vw,32px);color:#fff}
+.portrait .eyebrow{color:rgba(255,255,255,.72)}
+.portrait .wordmark{color:#fff;margin-top:10px}
+@media (min-width:860px){.portrait{aspect-ratio:16/10;max-height:78vh}}
+@keyframes portraitIn{from{opacity:0;filter:grayscale(1) blur(18px);transform:scale(1.06)}to{opacity:1;filter:grayscale(1) contrast(1.04) blur(0);transform:none}}
+
+/* ---------- Esse sou eu · as três notas ---------- */
+.notes-card{background:var(--surface);border-radius:var(--r-l);box-shadow:var(--shadow);padding:26px 20px 22px;text-align:center}
+.notes-head{display:grid;gap:16px;justify-items:center}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:22px}
+.note{margin:0;display:grid;justify-items:center;gap:14px}
+.note img,.note-ph{width:min(132px,26vw);aspect-ratio:1;object-fit:contain;filter:drop-shadow(0 14px 18px rgba(0,0,0,.16))}
+.note-ph{display:grid;place-items:center;border-radius:50%;background:var(--accent-soft);font-size:32px;font-weight:600;color:var(--ink-2);filter:none}
+.note figcaption{font-size:15px;color:var(--ink);letter-spacing:-.01em}
+.notes-foot{margin:20px 0 0;font-size:13px;color:var(--ink-2)}
+.me-rail{margin-top:18px}
+.seg.small button{height:32px;padding:0 13px;font-size:12px}
+.seg.small{max-width:100%}
+
+/* Foto no editor */
+.photo-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.photo-mini{width:56px;height:56px;border-radius:50%;object-fit:cover;background:var(--surface-2);filter:grayscale(1);display:block}
+label.pill{cursor:pointer}
+
+/* ---------- Desfoque progressivo na base da tela ---------- */
+.veil{position:fixed;left:0;right:0;bottom:0;height:clamp(96px,14vh,150px);z-index:14;pointer-events:none;transition:opacity .6s var(--ease)}
+.veil i{position:absolute;inset:0;display:block}
+.veil i:nth-child(1){backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);-webkit-mask-image:linear-gradient(to top,#000 0%,#000 30%,transparent 100%);mask-image:linear-gradient(to top,#000 0%,#000 30%,transparent 100%)}
+.veil i:nth-child(2){backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);-webkit-mask-image:linear-gradient(to top,#000 0%,#000 20%,transparent 70%);mask-image:linear-gradient(to top,#000 0%,#000 20%,transparent 70%)}
+.veil i:nth-child(3){backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);-webkit-mask-image:linear-gradient(to top,#000 0%,transparent 45%);mask-image:linear-gradient(to top,#000 0%,transparent 45%)}
+.veil::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,color-mix(in srgb,var(--bg) 70%,transparent) 0%,transparent 60%)}
+.veil.off{opacity:0}
+body.sheet-open .veil{opacity:0}
+@media (prefers-reduced-motion:reduce){.portrait img{filter:grayscale(1)}}
